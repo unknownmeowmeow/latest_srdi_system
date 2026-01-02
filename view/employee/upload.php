@@ -34,8 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $startDate = $_POST['startDate'] ?? date('Y-m-d');
     $endDate = $_POST['endDate'] ?? date('Y-m-d');
     $file = $_FILES['research_file'] ?? null;
+    $selected_type_id = $_POST['type_id']; // use selected type
 
-    if ($title && $description && !empty($membersArray) && $file && $file['error'] == 0 && $startDate && $endDate) {
+    if ($title && $description && !empty($membersArray) && $file && $file['error'] == 0 && $startDate && $endDate && $selected_type_id) {
         $targetDir = __DIR__ . "/research/";
         if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
 
@@ -43,8 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $targetFile = $targetDir . $filename;
 
         if (move_uploaded_file($file['tmp_name'], $targetFile)) {
-            if ($db->uploadResearch($title, $description, $members, $filename, $user_id, 1, $startDate, $endDate, $fullname)) {
-                $message = "Research uploaded successfully!";
+            if ($db->uploadResearch($title, $description, $members, $filename, $user_id, $selected_type_id, $startDate, $endDate, $fullname)) {
+                // Map type text for alert
+                $typeText = $selected_type_id == 1 ? "Mulberry" : ($selected_type_id == 2 ? "Post Cocoon" : "Silkworm");
+                $message = "Research uploaded successfully! (Type: $typeText)";
                 $messageType = 'success';
             } else {
                 $message = "Database error while saving research.";
@@ -55,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $messageType = 'error';
         }
     } else {
-        $message = "Please fill in all fields, select a file, and provide dates.";
+        $message = "Please fill in all fields, select a file, provide dates, and choose a research type.";
         $messageType = 'error';
     }
 }
@@ -64,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 <?php include 'partials/header.php'; ?>
+
 <body class="sb-nav-fixed">
     <?php include 'partials/navbar.php'; ?>
     <div id="layoutSidenav">
@@ -84,6 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="mb-3">
                                 <label class="form-label">Description</label>
                                 <textarea name="description" class="form-control" rows="3" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Research Type</label>
+                                <select name="type_id" class="form-select" required>
+                                    <option value="" disabled selected>Select Research Type</option>
+                                    <option value="1">Mulberry</option>
+                                    <option value="2">Post Cocoon</option>
+                                    <option value="3">Silkworm</option>
+                                </select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Member(s)</label>
@@ -112,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Upload File</label>
-                                <input type="file" name="research_file" class="form-control" accept=".pdf,.doc,.docx" required>
+                                <input type="file" name="research_file" class="form-control" accept=".pdf" multiple requiredny>
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Upload</button>
                         </form>
@@ -129,36 +142,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <!-- Dynamic Member Add/Remove -->
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const container = document.getElementById('member-container');
-        container.addEventListener('click', function(e) {
-            if (e.target.classList.contains('add-member')) {
-                const inputGroup = e.target.closest('.member-input');
-                const newInput = inputGroup.cloneNode(true);
-                newInput.querySelector('select').selectedIndex = 0;
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('member-container');
+            container.addEventListener('click', function(e) {
+                if (e.target.classList.contains('add-member')) {
+                    const inputGroup = e.target.closest('.member-input');
+                    const newInput = inputGroup.cloneNode(true);
+                    newInput.querySelector('select').selectedIndex = 0;
 
-                const btn = newInput.querySelector('button');
-                btn.textContent = '-';
-                btn.classList.replace('btn-success','btn-danger');
-                btn.classList.replace('add-member','remove-member');
+                    const btn = newInput.querySelector('button');
+                    btn.textContent = '-';
+                    btn.classList.replace('btn-success', 'btn-danger');
+                    btn.classList.replace('add-member', 'remove-member');
 
-                container.appendChild(newInput);
-            } else if (e.target.classList.contains('remove-member')) {
-                e.target.closest('.member-input').remove();
-            }
+                    container.appendChild(newInput);
+                } else if (e.target.classList.contains('remove-member')) {
+                    e.target.closest('.member-input').remove();
+                }
+            });
         });
-    });
     </script>
 
     <?php if ($message): ?>
-    <script>
-        Swal.fire({
-            icon: '<?= $messageType ?>',
-            title: '<?= $messageType === "success" ? "Success" : "Oops!" ?>',
-            text: '<?= $message ?>',
-            confirmButtonColor: '#3085d6',
-        });
-    </script>
+        <script>
+            Swal.fire({
+                icon: '<?= $messageType ?>',
+                title: '<?= $messageType === "success" ? "Success" : "Oops!" ?>',
+                text: '<?= $message ?>',
+                confirmButtonColor: '#3085d6',
+            });
+        </script>
     <?php endif; ?>
 </body>
+
 </html>

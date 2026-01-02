@@ -2,6 +2,11 @@
 session_start();
 require_once "../../controller/Main.php";
 
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../../auth/login.php");
+    exit;
+}
+
 $fullname = $_SESSION['fullname'] ?? 'User';
 $user_id = $_SESSION['user_id'] ?? 0;
 $type_id = $_SESSION['type_id'] ?? 0;
@@ -9,41 +14,47 @@ $type_id = $_SESSION['type_id'] ?? 0;
 $db = new db();
 $alert = null;
 
+// Research type mapping
+$typeNames = [1 => 'Mulberry', 2 => 'Post Cocoon', 3 => 'Silkworm'];
+
+// Handle type filter from GET
+$filterType = isset($_GET['filter_type']) ? intval($_GET['filter_type']) : 0;
+
 // Get all research for user based on type
 $researchList = $db->getResearchForUser($user_id, $type_id);
 
-// Filter only approved research (status_id = 2)
-$researchList = array_filter($researchList, function($r) use ($user_id, $type_id) {
-    if ($r['status_id'] != 2) return false;
-
-    if ($type_id == 1) {
-        return $r['user_id'] == $user_id; // type 1 sees only their own
+// Filter research based on type and status
+$researchList = array_filter($researchList, function($r) use ($type_id, $user_id) {
+    if ($type_id == 3) {
+        return in_array($r['status_id'], [2,4]);
+    } elseif ($type_id == 6) {
+        return $r['status_id'] == 2;
+    } elseif ($type_id == 1) {
+        return $r['user_id'] == $user_id && $r['status_id'] == 2;
     }
-    return true; // type 3+ sees all
+    return false;
 });
 
-// Handle Publish (5) or Revise (4) actions for type_id = 3
-if ($type_id == 3 && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'], $_POST['research_id'])) {
+// Apply type_id filter if selected
+if ($filterType && in_array($filterType, array_keys($typeNames))) {
+    $researchList = array_filter($researchList, function($r) use ($filterType) {
+        return $r['type_id'] == $filterType;
+    });
+}
+
+// Handle Type 3 or Type 6 actions
+if (in_array($type_id, [3,6]) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'], $_POST['research_id'])) {
     $researchId = intval($_POST['research_id']);
     $newStatus = intval($_POST['update_status']);
     $comment = $_POST['comment'] ?? null;
     $complianceFile = null;
 
-    if ($newStatus == 4) { // Revise
+    // Type 3 Revising
+    if ($type_id == 3 && $newStatus == 4) {
         if (empty($comment)) {
-            $alert = [
-                'icon' => 'error',
-                'title' => 'Comment Required',
-                'text' => 'Please enter a comment.',
-                'redirect' => 'approved.php'
-            ];
+            $alert = ['icon'=>'error','title'=>'Comment Required','text'=>'Please enter a comment.','redirect'=>'approved.php'];
         } elseif (!isset($_FILES['compliance']) || $_FILES['compliance']['error'] != 0) {
-            $alert = [
-                'icon' => 'error',
-                'title' => 'Compliance Required',
-                'text' => 'Please upload a compliance PDF file.',
-                'redirect' => 'approved.php'
-            ];
+            $alert = ['icon'=>'error','title'=>'Compliance Required','text'=>'Please upload a compliance PDF.','redirect'=>'approved.php'];
         } else {
             $targetDir = __DIR__ . "/compliance/";
             if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
@@ -55,33 +66,30 @@ if ($type_id == 3 && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upda
 
             $fileType = mime_content_type($_FILES['compliance']['tmp_name']);
             if ($fileType != 'application/pdf') {
-                $alert = [
-                    'icon' => 'error',
-                    'title' => 'Invalid File',
-                    'text' => 'Compliance file must be a PDF.',
-                    'redirect' => 'approved.php'
-                ];
+                $alert = ['icon'=>'error','title'=>'Invalid File','text'=>'Compliance file must be a PDF.','redirect'=>'approved.php'];
             } elseif (move_uploaded_file($_FILES['compliance']['tmp_name'], $targetFile)) {
                 $complianceFile = $filename;
             } else {
-                $alert = [
-                    'icon' => 'error',
-                    'title' => 'Upload Failed',
-                    'text' => 'Unable to upload compliance PDF.',
-                    'redirect' => 'approved.php'
-                ];
+                $alert = ['icon'=>'error','title'=>'Upload Failed','text'=>'Unable to upload compliance PDF.','redirect'=>'approved.php'];
             }
         }
     }
 
+    // Type 3 Approving
+    if ($type_id == 3 && $newStatus == 2) {
+        $comment = null;
+        $complianceFile = null;
+    }
+
+    // Type 6 Publishing
+    if ($type_id == 6 && $newStatus == 5) {
+        $comment = null;
+        $complianceFile = null;
+    }
+
     if (!isset($alert)) {
         $db->updateResearchStatusExtended($researchId, $newStatus, $user_id, $comment, $complianceFile);
-        $alert = [
-            'icon' => 'success',
-            'title' => 'Updated!',
-            'text' => 'Research status updated successfully.',
-            'redirect' => 'approved.php'
-        ];
+        $alert = ['icon'=>'success','title'=>'Updated!','text'=>'Research status updated successfully.','redirect'=>'approved.php'];
     }
 }
 
@@ -103,6 +111,22 @@ foreach ($researchList as $key => $research) {
         <main class="container-fluid px-4">
             <h1 class="mt-4">Approved Research</h1>
 
+            <!-- Filter Form -->
+            <form method="GET" class="mb-3 row g-2 align-items-center">
+                <div class="col-auto">
+                    <select name="filter_type" class="form-select">
+                        <option value="0">-- Filter by Type --</option>
+                        <?php foreach($typeNames as $id => $name): ?>
+                            <option value="<?= $id ?>" <?= ($filterType == $id) ? 'selected' : '' ?>><?= $name ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="approved.php" class="btn btn-secondary">Reset</a>
+                </div>
+            </form>
+
             <?php if ($researchList): ?>
                 <div class="card mb-4">
                     <div class="card-header"><i class="fas fa-list"></i> Approved Research</div>
@@ -119,7 +143,8 @@ foreach ($researchList as $key => $research) {
                                     <th>Compliance File</th>
                                     <th>Status</th>
                                     <th>Decided By</th>
-                                    <?php if ($type_id == 3) echo '<th>Action</th>'; ?>
+                                    <th>Type</th>
+                                    <?php if(in_array($type_id,[3,6])) echo '<th>Action</th>'; ?>
                                 </tr>
                             </thead>
                             <tbody>
@@ -131,23 +156,31 @@ foreach ($researchList as $key => $research) {
                                         <td><?= htmlspecialchars($research['startDate']) ?></td>
                                         <td><?= htmlspecialchars($research['endDate']) ?></td>
                                         <td>
-                                            <?php if (!empty($research['filePath'])): ?>
+                                            <?php if(!empty($research['filePath'])): ?>
                                                 <a href="research/<?= htmlspecialchars($research['filePath']) ?>" target="_blank">View Research</a>
-                                            <?php else: ?> N/A <?php endif; ?>
+                                            <?php else: ?>N/A<?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if (!empty($research['compliance'])): ?>
+                                            <?php if(!empty($research['compliance'])): ?>
                                                 <a href="compliance/<?= htmlspecialchars($research['compliance']) ?>" target="_blank">View Compliance</a>
-                                            <?php else: ?> N/A <?php endif; ?>
+                                            <?php else: ?>N/A<?php endif; ?>
                                         </td>
-                                        <td><span class="badge bg-success">Approved</span></td>
+                                        <td>
+                                            <?php 
+                                                $statusLabel = $research['status_id'] == 2 ? 'Approved' :
+                                                               ($research['status_id'] == 4 ? 'Revision' : 'Unknown');
+                                                $badge = $research['status_id'] == 2 ? 'success' : 'info';
+                                                echo "<span class='badge bg-$badge'>$statusLabel</span>";
+                                            ?>
+                                        </td>
                                         <td><?= htmlspecialchars($research['decided_by']) ?></td>
+                                        <td><?= htmlspecialchars($typeNames[$research['type_id']] ?? 'Unknown') ?></td>
 
-                                        <?php if ($type_id == 3): ?>
+                                        <?php if($type_id == 3): ?>
                                             <td>
                                                 <form method="POST" class="d-inline">
                                                     <input type="hidden" name="research_id" value="<?= $research['id'] ?>">
-                                                    <button type="submit" name="update_status" value="5" class="btn btn-primary btn-sm">Publish</button>
+                                                    <button type="submit" name="update_status" value="2" class="btn btn-success btn-sm">Approve</button>
                                                 </form>
                                                 <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#reviseModal<?= $research['id'] ?>">Revise</button>
 
@@ -179,6 +212,13 @@ foreach ($researchList as $key => $research) {
                                                     </div>
                                                 </div>
                                             </td>
+                                        <?php elseif($type_id == 6): ?>
+                                            <td>
+                                                <form method="POST">
+                                                    <input type="hidden" name="research_id" value="<?= $research['id'] ?>">
+                                                    <button type="submit" name="update_status" value="5" class="btn btn-primary btn-sm">Publish</button>
+                                                </form>
+                                            </td>
                                         <?php endif; ?>
                                     </tr>
                                 <?php endforeach; ?>
@@ -195,7 +235,7 @@ foreach ($researchList as $key => $research) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<?php if ($alert): ?>
+<?php if($alert): ?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         Swal.fire({
@@ -203,9 +243,7 @@ foreach ($researchList as $key => $research) {
             title: '<?= $alert['title'] ?>',
             text: '<?= $alert['text'] ?>',
             confirmButtonColor: '#3085d6'
-        }).then(() => {
-            window.location.href = 'approved.php';
-        });
+        }).then(()=> window.location.href='approved.php');
     </script>
 <?php endif; ?>
 </body>

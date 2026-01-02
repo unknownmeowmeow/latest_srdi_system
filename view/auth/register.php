@@ -56,7 +56,7 @@ if (isset($_POST['submit'])) {
             justify-content: center;
             align-items: center;
             font-family: Arial, sans-serif;
-            background: url('https://images.unsplash.com/photo-1503264116251-35a269479413?auto=format&fit=crop&w=1350&q=80') no-repeat center center/cover;
+            background: url('https://images.pexels.com/photos/23884131/pexels-photo-23884131.jpeg') no-repeat center center/cover;
         }
 
         .glass {

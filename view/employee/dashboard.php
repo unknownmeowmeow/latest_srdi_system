@@ -1,4 +1,9 @@
 <?php
+// Prevent caching
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 session_start();
 require_once "../../controller/Main.php";
 
@@ -15,31 +20,35 @@ $session_user_id = $_SESSION['user_id'] ?? 0;
 
 $db = new db();
 
-// Status mapping
-$statusText = [1 => 'Pending', 2 => 'Approved', 3 => 'Revised', 4 => 'Cancelled', 5 => 'Published'];
+$typeName = $db->getEmployeeTypeName($type_id) ?? 'Unknown Type';
+
+// Status mapping: change 3 => 'Revision'
+$statusText = [1 => 'Pending', 2 => 'Approved', 3 => 'Revision', 4 => 'Cancelled', 5 => 'Published'];
 $bgColors = [
     'pending' => 'secondary',
     'approved' => 'success',
-    'revised' => 'info',
+    'revised' => 'info', // will use 'info' for Revision
     'cancelled' => 'warning',
     'published' => 'primary'
 ];
 
 // Determine which research to fetch
 if ($type_id == 1) {
-    // Employee: own research only
     $statusCountsRaw = $db->getResearchStatusCounts($session_user_id);
     $allResearch = $db->getAllResearch($session_user_id);
     $monthlyCounts = $db->getMonthlyResearchCounts(date('Y'), $session_user_id);
 } else {
-    // Other types: see all research
     $statusCountsRaw = $db->getResearchStatusCounts();
     $allResearch = $db->getAllResearch();
     $monthlyCounts = $db->getMonthlyResearchCounts(date('Y'));
 }
 
-// Prepare status counts (use keys from getResearchStatusCounts)
-$statusMap = [1 => 'pending', 2 => 'approved', 3 => 'revised', 4 => 'cancelled', 5 => 'published'];
+// Replace 'revised' counts key with 'revision'
+$statusCountsRaw['revision'] = $statusCountsRaw['revised'] ?? 0;
+unset($statusCountsRaw['revised']);
+
+// Prepare status counts
+$statusMap = [1 => 'pending', 2 => 'approved', 3 => 'revision', 4 => 'cancelled', 5 => 'published'];
 $statusCounts = [];
 foreach ($statusMap as $id => $name) {
     $statusCounts[$name] = $statusCountsRaw[$name] ?? 0;
@@ -51,6 +60,9 @@ $monthlyData = [];
 for ($i = 1; $i <= 12; $i++) {
     $monthlyData[] = $monthlyCounts[$i] ?? 0;
 }
+
+// Research type mapping
+$typeNames = [1 => 'Mulberry', 2 => 'Post Cocoon', 3 => 'Silkworm'];
 ?>
 
 <?php include 'partials/header.php'; ?>
@@ -64,7 +76,7 @@ for ($i = 1; $i <= 12; $i++) {
                 <div class="container-fluid px-4">
                     <h1 class="mt-4">Dashboard</h1>
                     <ol class="breadcrumb mb-4">
-                        <li class="breadcrumb-item active">Welcome, <?= htmlspecialchars($fullname) ?>!</li>
+                        <li class="breadcrumb-item active">Hi, <?= htmlspecialchars($typeName) ?>, <?= htmlspecialchars($fullname) ?>!</li>
                     </ol>
 
                     <!-- Status Cards -->
@@ -105,6 +117,7 @@ for ($i = 1; $i <= 12; $i++) {
                                         <th>Compliance</th>
                                         <th>Comment</th>
                                         <th>Status</th>
+                                        <th>Type</th> <!-- added type column -->
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -131,7 +144,13 @@ for ($i = 1; $i <= 12; $i++) {
                                                     <?php else: ?>N/A<?php endif; ?>
                                             </td>
                                             <td><?= htmlspecialchars($r['comment']) ?></td>
-                                            <td><?= htmlspecialchars($statusText[$r['status_id']] ?? 'Unknown') ?></td>
+                                            <td>
+                                                <?php
+                                                if ($r['status_id'] == 3) echo '<span class="badge bg-info">Revision</span>';
+                                                else echo htmlspecialchars($statusText[$r['status_id']] ?? 'Unknown');
+                                                ?>
+                                            </td>
+                                            <td><?= htmlspecialchars($typeNames[$r['type_id']] ?? 'Unknown') ?></td> <!-- show type -->
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

@@ -9,6 +9,9 @@ $type_id = $_SESSION['type_id'] ?? 0;
 $db = new db();
 $alert = null;
 
+// Research type mapping
+$typeNames = [1 => 'Mulberry', 2 => 'Post Cocoon', 3 => 'Silkworm'];
+
 // Get research using the new method
 $researchList = $db->getResearchForUser($user_id, $type_id);
 
@@ -17,10 +20,11 @@ $researchList = array_filter($researchList, function($r) {
     return $r['status_id'] == 4;
 });
 
-// Add team leader and decided by names
+// Add team leader, decided by names, and type name
 foreach ($researchList as $key => $research) {
     $researchList[$key]['team_leader'] = $db->getEmployeeName($research['user_id']);
     $researchList[$key]['decided_by'] = $research['desisyon_id'] ? $db->getEmployeeName($research['desisyon_id']) : '-';
+    $researchList[$key]['type_name'] = $typeNames[$research['type_id']] ?? 'Unknown';
 }
 ?>
 
@@ -52,6 +56,7 @@ foreach ($researchList as $key => $research) {
                                         <th>Compliance File</th>
                                         <th>Status</th>
                                         <th>Decided By</th>
+                                        <th>Type</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -74,6 +79,7 @@ foreach ($researchList as $key => $research) {
                                             </td>
                                             <td><span class="badge bg-warning">Cancelled</span></td>
                                             <td><?= htmlspecialchars($research['decided_by']) ?></td>
+                                            <td><?= htmlspecialchars($research['type_name']) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

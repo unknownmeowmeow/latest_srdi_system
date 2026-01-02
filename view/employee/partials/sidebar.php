@@ -21,11 +21,13 @@ $type_id = $_SESSION['type_id'] ?? 0;
                 </a>
                 <div class="collapse" id="collapseResearch" data-bs-parent="#sidenavAccordion">
                     <nav class="sb-sidenav-menu-nested nav">
-                        <a class="nav-link" href="approved.php"><i class="fas fa-check-circle me-1"></i> Approved</a>
-                        <a class="nav-link" href="cancel.php"><i class="fas fa-times-circle me-1"></i> Cancelled</a>
-                        <a class="nav-link" href="revised.php"><i class="fas fa-ban me-1"></i> Revised</a>
-                        <a class="nav-link" href="publish.php"><i class="fas fa-upload me-1"></i> Published</a>
-                        <a class="nav-link" href="pending.php"><i class="fas fa-upload me-1"></i> Pending</a>
+                        <?php if ($type_id == 6 || $type_id == 5 || $type_id == 2 || $type_id == 3 || $type_id == 2 || $type_id == 1): ?>
+                            <a class="nav-link" href="approved.php"><i class="fas fa-check-circle me-1"></i> Approved</a>
+                            <a class="nav-link" href="cancel.php"><i class="fas fa-times-circle me-1"></i> Cancelled</a>
+                            <a class="nav-link" href="revised.php"><i class="fas fa-ban me-1"></i> Revision</a>
+                            <a class="nav-link" href="publish.php"><i class="fas fa-upload me-1"></i> Published</a>
+                            <a class="nav-link" href="pending.php"><i class="fas fa-upload me-1"></i> Pending</a>
+                        <?php endif; ?>
                         <?php if ($type_id == 1): ?>
                             <a class="nav-link" href="upload.php"><i class="fas fa-file-upload me-1"></i> Upload Research</a>
                         <?php endif; ?>

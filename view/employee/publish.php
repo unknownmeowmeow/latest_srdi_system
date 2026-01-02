@@ -8,6 +8,9 @@ $type_id = $_SESSION['type_id'] ?? 0;
 
 $db = new db();
 
+// Research type mapping
+$typeNames = [1 => 'Mulberry', 2 => 'Post Cocoon', 3 => 'Silkworm'];
+
 // Get all research for the user based on type
 $researchList = $db->getResearchForUser($user_id, $type_id);
 
@@ -16,10 +19,19 @@ $researchList = array_filter($researchList, function($r) {
     return $r['status_id'] == 5;
 });
 
-// Add team leader and decided by names
+// Apply type filter if requested
+$filterType = $_GET['type_id'] ?? '';
+if ($filterType && in_array($filterType, [1,2,3])) {
+    $researchList = array_filter($researchList, function($r) use ($filterType) {
+        return $r['type_id'] == $filterType;
+    });
+}
+
+// Add team leader, decided by names, and type name
 foreach ($researchList as $key => $research) {
     $researchList[$key]['team_leader'] = $db->getEmployeeName($research['user_id']);
     $researchList[$key]['decided_by'] = $research['desisyon_id'] ? $db->getEmployeeName($research['desisyon_id']) : '-';
+    $researchList[$key]['type_name'] = $typeNames[$research['type_id']] ?? 'Unknown';
 }
 ?>
 
@@ -34,6 +46,18 @@ foreach ($researchList as $key => $research) {
     <div id="layoutSidenav_content">
         <main class="container-fluid px-4">
             <h1 class="mt-4">Published Research</h1>
+
+            <!-- Type Filter -->
+            <form method="GET" class="mb-3">
+                <label>Filter by Type:</label>
+                <select name="type_id" class="form-select w-auto d-inline-block">
+                    <option value="">All</option>
+                    <?php foreach ($typeNames as $id => $name): ?>
+                        <option value="<?= $id ?>" <?= $filterType == $id ? 'selected' : '' ?>><?= $name ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+            </form>
 
             <?php if ($researchList): ?>
                 <div class="card mb-4">
@@ -51,6 +75,7 @@ foreach ($researchList as $key => $research) {
                                     <th>Compliance File</th>
                                     <th>Status</th>
                                     <th>Decided By</th>
+                                    <th>Type</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -73,6 +98,7 @@ foreach ($researchList as $key => $research) {
                                         </td>
                                         <td><span class="badge bg-primary">Published</span></td>
                                         <td><?= htmlspecialchars($research['decided_by']) ?></td>
+                                        <td><?= htmlspecialchars($research['type_name']) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
